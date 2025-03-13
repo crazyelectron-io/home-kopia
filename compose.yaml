@@ -1,0 +1,57 @@
+---
+services:
+
+  kopia:
+    image: kopia/kopia:latest
+    container_name: kopia
+    hostname: kopia
+    restart: unless-stopped
+    env_file: .env
+    user: root:root
+    # ports:
+    #   - 51515:51515
+    # Setup the server that provides the web gui
+    command:
+      - server
+      - start
+      - --disable-csrf-token-checks
+      - --insecure
+      - --address=0.0.0.0:51515
+      - --server-username=${KOPIA_USER}
+      - --server-password=${KOPIA_USER_PASSWORD}
+    environment:
+      # Set repository password
+      KOPIA_PASSWORD: ${KOPIA_REPOSITORY_PASSWORD}
+      # USER: ${KOPIA_USERNAME}
+      TZ: Europe/Amsterdam
+    volumes:
+      # Mount local folders needed by kopia
+      - /mnt/data/appdata/kopia/config:/app/config:rw
+      - /mnt/data/appdata/kopia/cache:/app/cache:rw
+      - /mnt/data/appdata/kopia/logs:/app/logs:rw
+      # Mount local folders to snapshot
+      - /:/data:ro
+      # Mount repository location
+      - /mnt/truenas/backup:/backup:rw
+      # Mount export location
+      - /mnt/data/appdata/kopia/export:/export:rw
+      # Mount path for browsing mounted snaphots
+      # - /mnt/data/appdata/kopia/tmp:/tmp:shared
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kopia.entrypoints=http"
+      - "traefik.http.routers.kopia.rule=Host(`${KOPIA_DOMAIN}`)"
+      - "traefik.http.middlewares.kopia-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.kopia.middlewares=kopia-https-redirect"
+      - "traefik.http.routers.kopia-secure.entrypoints=https"
+      - "traefik.http.routers.kopia-secure.rule=Host(`${KOPIA_DOMAIN}`)"
+      - "traefik.http.routers.kopia-secure.middlewares=authentik@file"
+      - "traefik.http.routers.kopia-secure.tls=true"
+      - "traefik.http.routers.kopia.service=kopia"
+      - "traefik.http.services.kopia.loadbalancer.server.port=51515"
+    networks:
+      - frontend
+
+networks:
+  frontend:
+    external: true
